@@ -31,15 +31,15 @@ namespace LibraryService.WebAPI
             services.AddControllers();
 
             // Add Swagger generation
-            services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc("v1", new OpenApiInfo
-                {
-                    Title = "LibraryService API",
-                    Version = "v1",
-                    Description = "A simple example ASP.NET Core Web API for LibraryService"
-                });
-            });
+            //services.AddSwaggerGen(c =>
+            //{
+            //    c.SwaggerDoc("v1", new OpenApiInfo
+            //    {
+            //        Title = "LibraryService API",
+            //        Version = "v1",
+            //        Description = "A simple example ASP.NET Core Web API for LibraryService"
+            //    });
+            //});
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -51,13 +51,13 @@ namespace LibraryService.WebAPI
 
 
                 // Enable middleware to serve generated Swagger as a JSON endpoint.
-                app.UseSwagger();
+                //app.UseSwagger();
 
-                // Enable middleware to serve swagger-ui, specifying the Swagger JSON endpoint.
-                app.UseSwaggerUI(c =>
-                {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LibraryService API v1");
-                });
+                //// Enable middleware to serve swagger-ui, specifying the Swagger JSON endpoint.
+                //app.UseSwaggerUI(c =>
+                //{
+                //    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LibraryService API v1");
+                //});
             }
 
             app.UseRouting();

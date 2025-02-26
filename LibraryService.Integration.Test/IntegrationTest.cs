@@ -73,7 +73,7 @@ namespace LibraryService.Tests
         {
             var bookForm = new BookForm
             {
-                Name = bookName
+                Name = bookName,
             };
             var response1 = await Client.PostAsync($"/api/libraries/{libraryId}/books",
                 new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
@@ -89,6 +89,8 @@ namespace LibraryService.Tests
             var bookForm = new BookForm
             {
                 Name = "Test book 1",
+                Id = 1,
+                Category = "test"
             };
 
             var response1 = await Client.PostAsync($"/api/libraries/1/books",
@@ -99,6 +101,8 @@ namespace LibraryService.Tests
             bookForm = new BookForm
             {
                 Name = "Test book 2",
+                Id = 5,
+                Category = "test"
             };
 
             var response2 = await Client.PostAsync($"/api/libraries/100/books",
@@ -114,11 +118,37 @@ namespace LibraryService.Tests
         {
             await SeedLibrary();
 
-            await SeedBook("test book 1", 1);
-            await SeedBook("test book 2", 1);
+            //await SeedBook("test book 1", 1);
+            //await SeedBook("test book 2", 1);
+
+            var bookForm = new BookForm
+            {
+                Name = "Test book 1",
+                Id = 1,
+                Category = "test"
+            };
+
+            var r1 = await Client.PostAsync($"/api/libraries/1/books",
+                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
+
+            r1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status201Created);
+
+            bookForm = new BookForm
+            {
+                Name = "Test book 2",
+                Id = 2,
+                Category = "test"
+            };
+
+            var r2 = await Client.PostAsync($"/api/libraries/1/books",
+                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
+
+            r2.StatusCode.Should().BeEquivalentTo(StatusCodes.Status201Created);
+
+
 
             var response1 = await Client.GetAsync($"/api/libraries/2/books");
-            response1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status200OK);
+            response1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status404NotFound);
             var books = JsonConvert.DeserializeObject<IEnumerable<Book>>(response1.Content.ReadAsStringAsync().Result).ToList();
             books.Count.Should().Be(0);
 
@@ -140,7 +170,9 @@ namespace LibraryService.Tests
 
             var bookForm = new BookForm
             {
-                Name = "test book 1",
+                Name = "Test book 1",
+                Id = 1,
+                Category = "test"
             };
 
             // add book to library

@@ -18,13 +18,17 @@ namespace LibraryService.WebAPI.Services
         public async Task<IEnumerable<Book>> Get(int libraryId, int[] ids)
         {
             // Complete the implementation
-            throw new NotImplementedException();
+            IEnumerable<Book> books = await _libraryContext.Books.Where(x => x.LibraryId == libraryId).ToListAsync();
+
+            return books;
         }
 
         public async Task<Book> Add(Book book)
         {
-            // Complete the implementation
-            throw new NotImplementedException();
+            await _libraryContext.Books.AddAsync(book);
+            await _libraryContext.SaveChangesAsync();
+
+            return book;
         }
 
         public async Task<Book> Update(Book book)

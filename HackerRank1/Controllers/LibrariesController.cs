@@ -53,5 +53,17 @@ namespace LibraryService.WebAPI.Controllers
         }
 
         // Implement the DELETE method below
+        [HttpDelete("{libraryId}")]
+        public async Task<IActionResult> Update(int libraryId)
+        {
+            var existingLibrary = (await _librariesService.Get(new[] { libraryId })).FirstOrDefault();
+            if (existingLibrary == null)
+                return NotFound();
+
+
+            await _librariesService.Delete(existingLibrary);
+            return NoContent();
+        }
+
     }
 }
