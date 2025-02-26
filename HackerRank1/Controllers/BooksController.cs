@@ -8,7 +8,7 @@ using LibraryService.WebAPI.DTO;
 namespace LibraryService.WebAPI.Controllers
 {
     [ApiController]
-    [Route("api/libraries/{libraryId}/books")]
+    [Route("api/libraries/{libraryId}/[Controller]")]
     public class BooksController : ControllerBase
     {
         private readonly ILibrariesService _librariesService;
