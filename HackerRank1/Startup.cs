@@ -1,71 +1,80 @@
-﻿using LibraryService.WebAPI.Data;
-using LibraryService.WebAPI.Services;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
+﻿using LearningService.WebAPI.Data;
+using LearningService.WebAPI.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
-namespace LibraryService.WebAPI
+namespace LearningService.WebAPI;
+
+public class Startup
 {
-    public class Startup
+    public Startup(IConfiguration configuration)
     {
-        public Startup(IConfiguration configuration)
+        Configuration = configuration;
+    }
+
+    public IConfiguration Configuration { get; }
+
+    // This method gets called by the runtime. Use this method to add services to the container.
+    public void ConfigureServices(IServiceCollection services)
+    {
+        // Add support for Dependency Injection for internal services (StudentsService and LearningService)
+        services.AddScoped<IActivitiesService, ActivitiesService>();
+        services.AddScoped<IStudentsService,  StudentsService>();
+
+        services.AddCors(option =>
         {
-            Configuration = configuration;
-        }
-
-        public IConfiguration Configuration { get; }
-
-        // This method gets called by the runtime. Use this method to add services to the container.
-        public void ConfigureServices(IServiceCollection services)
-        {
-            // Add support for Dependency Injection for internal services (BooksService and LibrariesService)
-            services.AddTransient<ILibrariesService,  LibrariesService>();
-            services.AddTransient<IBooksService,  BooksService>();
-
-            services.AddDbContext<LibraryContext>(options => options.UseInMemoryDatabase("librarydb"));
-            services.AddControllers();
-
-            // Add Swagger generation
-            //services.AddSwaggerGen(c =>
-            //{
-            //    c.SwaggerDoc("v1", new OpenApiInfo
-            //    {
-            //        Title = "LibraryService API",
-            //        Version = "v1",
-            //        Description = "A simple example ASP.NET Core Web API for LibraryService"
-            //    });
-            //});
-        }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
-        {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-
-
-                // Enable middleware to serve generated Swagger as a JSON endpoint.
-                //app.UseSwagger();
-
-                //// Enable middleware to serve swagger-ui, specifying the Swagger JSON endpoint.
-                //app.UseSwaggerUI(c =>
-                //{
-                //    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LibraryService API v1");
-                //});
-            }
-
-            app.UseRouting();
-
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
+            option.AddPolicy("AllowLocalHost", builder => {
+                builder.WithOrigins(new string[] { "http://localhost:5173", "https://localhost:5173" })
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
             });
+
+        });
+
+        // Add connection string from appsettings.json
+        services.AddDbContext<StudentsContext>(options =>
+            options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+
+        services.AddControllers();
+
+        //Add Swagger generation
+        services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "LearningService API",
+                Version = "v1",
+                Description = "A simple example ASP.NET Core Web API for LearningService"
+            });
+        });
+    }
+
+    // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        if (env.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+            
+
+            // Enable middleware to serve generated Swagger as a JSON endpoint.
+            app.UseSwagger();
+
+            // Enable middleware to serve swagger-ui, specifying the Swagger JSON endpoint.
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "LearningService API v1");
+            });
+
+            // Enable CORS for localhost during development
+            app.UseCors("AllowLocalHost");
         }
+
+        app.UseRouting();
+
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapControllers();
+        });
     }
 }

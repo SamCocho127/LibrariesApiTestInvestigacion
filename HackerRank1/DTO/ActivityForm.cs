@@ -1,12 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿using HackerRank1.Enums;
+using Newtonsoft.Json;
 
-namespace LibraryService.WebAPI.DTO
+namespace LearningService.WebAPI.DTO
 {
-    public class LibraryForm
-    {
-        [JsonProperty("id")]
-        public int Id { get; set; }
-
+    public class ActivityForm
+    {    
         [JsonProperty("name")]
         public string Name { get; set; }
 

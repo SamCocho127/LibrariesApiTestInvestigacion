@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace LibraryService.Tests.Extensions
+namespace LearningService.Tests.Extensions
 {
     public static class HttpResponseExtensions
     {

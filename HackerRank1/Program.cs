@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
-namespace LibraryService.WebAPI
+namespace LearningService.WebAPI
 {
     public class Program
     {
