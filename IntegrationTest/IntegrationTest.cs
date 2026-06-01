@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Newtonsoft.Json;
 using Xunit;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace LibraryService.Tests
 {
@@ -35,8 +34,7 @@ namespace LibraryService.Tests
                         .EnableSensitiveDataLogging()
                         .Options);
             Client = _factory.WithWebHostBuilder(builder =>
-                builder.UseStartup<Startup>()
-                .ConfigureServices(services =>
+                builder.ConfigureServices(services =>
                 {
                     services.RemoveAll(typeof(LibraryContext));
                     services.AddSingleton(context);
@@ -44,6 +42,8 @@ namespace LibraryService.Tests
                     context.Database.OpenConnection();
                     context.Database.EnsureCreated();
 
+                    context.Books.RemoveRange(context.Books);
+                    context.Libraries.RemoveRange(context.Libraries);
                     context.SaveChanges();
 
                     // Clear local context cache
@@ -57,12 +57,16 @@ namespace LibraryService.Tests
 
         private async Task SeedLibrary()
         {
+            context.Books.RemoveRange(context.Books);
+            context.Libraries.RemoveRange(context.Libraries);
+            await context.SaveChangesAsync();
+
             var libraries = new List<Library>
             {
-                new Library { Name = "Library Name 1", Location = "Location 1" },
-                new Library { Name = "Library Name 2", Location = "Location 2" },
-                new Library { Name = "Library Name 3", Location = "Location 3" },
-                new Library { Name = "Library Name 4", Location = "Location 4" }
+                new Library { Id = 1, Name = "Library Name 1", Location = "Location 1" },
+                new Library { Id = 2, Name = "Library Name 2", Location = "Location 2" },
+                new Library { Id = 3, Name = "Library Name 3", Location = "Location 3" },
+                new Library { Id = 4, Name = "Library Name 4", Location = "Location 4" }
             };
 
             await context.Libraries.AddRangeAsync(libraries);
@@ -94,7 +98,7 @@ namespace LibraryService.Tests
             var response1 = await Client.PostAsync($"/api/libraries/1/books",
                 new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
 
-            response1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status201Created);
+            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
 
             bookForm = new BookForm
             {
@@ -104,7 +108,7 @@ namespace LibraryService.Tests
             var response2 = await Client.PostAsync($"/api/libraries/100/books",
                 new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
 
-            response2.StatusCode.Should().BeEquivalentTo(StatusCodes.Status404NotFound);
+            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
         }
 
         // TEST NAME - getBooksInALibrary
@@ -118,17 +122,17 @@ namespace LibraryService.Tests
             await SeedBook("test book 2", 1);
 
             var response1 = await Client.GetAsync($"/api/libraries/2/books");
-            response1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status200OK);
+            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status200OK);
             var books = JsonConvert.DeserializeObject<IEnumerable<Book>>(response1.Content.ReadAsStringAsync().Result).ToList();
             books.Count.Should().Be(0);
 
             var response2 = await Client.GetAsync($"/api/libraries/1/books");
-            response2.StatusCode.Should().BeEquivalentTo(StatusCodes.Status200OK);
+            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status200OK);
             var books2 = JsonConvert.DeserializeObject<IEnumerable<Book>>(response2.Content.ReadAsStringAsync().Result).ToList();
             books2.Count.Should().Be(2);
 
             var response3 = await Client.GetAsync($"/api/libraries/31232/books");
-            response3.StatusCode.Should().BeEquivalentTo(StatusCodes.Status404NotFound);
+            response3.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
         }
 
         // TEST NAME - deleteLibraryById
@@ -146,18 +150,18 @@ namespace LibraryService.Tests
             // add book to library
             var response0 = await Client.PostAsync("/api/libraries/1/books",
                 new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
-            response0.StatusCode.Should().BeEquivalentTo(StatusCodes.Status201Created);
+            response0.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
 
             // delete library
             var response1 = await Client.DeleteAsync("/api/libraries/1");
-            response1.StatusCode.Should().BeEquivalentTo(StatusCodes.Status204NoContent);
+            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status204NoContent);
 
             // Verify that delete is successful
             var response2 = await Client.GetAsync("/api/libraries/1/books");
-            response2.StatusCode.Should().BeEquivalentTo(StatusCodes.Status404NotFound);
+            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
 
             var response3 = await Client.DeleteAsync("/api/libraries/1");
-            response3.StatusCode.Should().BeEquivalentTo(StatusCodes.Status404NotFound);
+            response3.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
         }
     }
 }
