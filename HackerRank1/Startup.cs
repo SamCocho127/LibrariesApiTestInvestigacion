@@ -1,13 +1,19 @@
-﻿using LibraryService.WebAPI.Data;
+﻿using HackerRank1.Entities;
+using HackerRank1.Services;
+using LibraryService.WebAPI.Data;
 using LibraryService.WebAPI.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 
 namespace LibraryService.WebAPI
 {
@@ -23,12 +29,65 @@ namespace LibraryService.WebAPI
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            // 1. jwtSettings binding
+            var jwtSettings = Configuration
+                                .GetSection("JwtSettings")
+                                .Get<JwtSettings>()
+                                ?? throw new InvalidOperationException("Invalid JWT Settings");
+
+            // 2. Registro de DI
+
+            services.AddSingleton(jwtSettings);
+            services.AddScoped<IAuthenticationService, AuthenticationService>();
+
+            // 3. Configurar Authenticacion
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(option =>
+                {
+                    option.TokenValidationParameters = new TokenValidationParameters()
+                    {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+
+                        ValidateIssuer = true,
+                        ValidIssuer = jwtSettings.Issuer,
+
+                        ValidateAudience = true,
+                        ValidAudience = jwtSettings.Audience,
+
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.Zero
+                    };
+                });
+
+            // 4. Configurar Autorizacion
+            services.AddAuthorization();
+
+
             // Add support for Dependency Injection for internal services (BooksService and LibrariesService)
             services.AddTransient<ILibrariesService,  LibrariesService>();
             services.AddTransient<IBooksService,  BooksService>();
 
             services.AddDbContext<LibraryContext>(options => options.UseInMemoryDatabase("librarydb"));
-            services.AddControllers();
+            services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                });
+
+            services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(policy =>
+                {
+                    policy.WithOrigins(
+                            "http://localhost:5173",
+                            "http://127.0.0.1:5173",
+                            "http://localhost:4173",
+                            "http://127.0.0.1:4173")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
+            });
 
             // Add Swagger generation
             services.AddSwaggerGen(c =>
@@ -60,12 +119,47 @@ namespace LibraryService.WebAPI
                 });
             }
 
+
+
             app.UseRouting();
+            app.UseCors();
+
+            // Agregar los metodos de Auth al Middleware Pipeline.
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
             });
+
+            SeedDatabase(app);
+        }
+
+        private static void SeedDatabase(IApplicationBuilder app)
+        {
+            using var scope = app.ApplicationServices.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<LibraryContext>();
+
+            if (context.Libraries.Any())
+                return;
+
+            var libraries = new[]
+            {
+                new Library { Name = "Biblioteca Central", Location = "San José" },
+                new Library { Name = "Biblioteca Norte", Location = "Heredia" },
+                new Library { Name = "Biblioteca Sur", Location = "Cartago" },
+            };
+
+            context.Libraries.AddRange(libraries);
+            context.SaveChanges();
+
+            context.Books.AddRange(
+                new Book { Name = "Cien años de soledad", Category = "Ficción", LibraryId = 1 },
+                new Book { Name = "El principito", Category = "Ficción", LibraryId = 1 },
+                new Book { Name = "Sapiens", Category = "Historia", LibraryId = 2 },
+                new Book { Name = "Clean Code", Category = "Tecnología", LibraryId = 3 });
+            context.SaveChanges();
         }
     }
 }
