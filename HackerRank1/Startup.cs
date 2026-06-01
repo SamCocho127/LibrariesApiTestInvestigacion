@@ -69,7 +69,25 @@ namespace LibraryService.WebAPI
             services.AddTransient<IBooksService,  BooksService>();
 
             services.AddDbContext<LibraryContext>(options => options.UseInMemoryDatabase("librarydb"));
-            services.AddControllers();
+            services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                });
+
+            services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(policy =>
+                {
+                    policy.WithOrigins(
+                            "http://localhost:5173",
+                            "http://127.0.0.1:5173",
+                            "http://localhost:4173",
+                            "http://127.0.0.1:4173")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
+            });
 
             // Add Swagger generation
             services.AddSwaggerGen(c =>
@@ -104,6 +122,7 @@ namespace LibraryService.WebAPI
 
 
             app.UseRouting();
+            app.UseCors();
 
             // Agregar los metodos de Auth al Middleware Pipeline.
             app.UseAuthentication();
@@ -113,6 +132,34 @@ namespace LibraryService.WebAPI
             {
                 endpoints.MapControllers();
             });
+
+            SeedDatabase(app);
+        }
+
+        private static void SeedDatabase(IApplicationBuilder app)
+        {
+            using var scope = app.ApplicationServices.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<LibraryContext>();
+
+            if (context.Libraries.Any())
+                return;
+
+            var libraries = new[]
+            {
+                new Library { Name = "Biblioteca Central", Location = "San José" },
+                new Library { Name = "Biblioteca Norte", Location = "Heredia" },
+                new Library { Name = "Biblioteca Sur", Location = "Cartago" },
+            };
+
+            context.Libraries.AddRange(libraries);
+            context.SaveChanges();
+
+            context.Books.AddRange(
+                new Book { Name = "Cien años de soledad", Category = "Ficción", LibraryId = 1 },
+                new Book { Name = "El principito", Category = "Ficción", LibraryId = 1 },
+                new Book { Name = "Sapiens", Category = "Historia", LibraryId = 2 },
+                new Book { Name = "Clean Code", Category = "Tecnología", LibraryId = 3 });
+            context.SaveChanges();
         }
     }
 }

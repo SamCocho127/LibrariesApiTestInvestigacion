@@ -17,26 +17,42 @@ namespace LibraryService.WebAPI.Services
 
         public async Task<IEnumerable<Book>> Get(int libraryId, int[] ids)
         {
-            // Complete the implementation
-            throw new NotImplementedException();
+            var query = _libraryContext.Books.Where(b => b.LibraryId == libraryId);
+
+            if (ids != null && ids.Length > 0)
+                query = query.Where(b => ids.Contains(b.Id));
+
+            return await query.ToListAsync();
         }
 
         public async Task<Book> Add(Book book)
         {
-            // Complete the implementation
-            throw new NotImplementedException();
+            await _libraryContext.Books.AddAsync(book);
+            await _libraryContext.SaveChangesAsync();
+            return book;
         }
 
         public async Task<Book> Update(Book book)
         {
-            // Complete the implementation
-            throw new NotImplementedException();
+            var existing = await _libraryContext.Books.SingleAsync(x => x.Id == book.Id);
+            existing.Name = book.Name;
+            existing.Category = book.Category;
+            existing.LibraryId = book.LibraryId;
+
+            _libraryContext.Books.Update(existing);
+            await _libraryContext.SaveChangesAsync();
+            return existing;
         }
 
         public async Task<bool> Delete(Book book)
         {
-            // Complete the implementation
-            throw new NotImplementedException();
+            var existing = await _libraryContext.Books.SingleOrDefaultAsync(x => x.Id == book.Id);
+            if (existing is null)
+                return false;
+
+            _libraryContext.Books.Remove(existing);
+            await _libraryContext.SaveChangesAsync();
+            return true;
         }
     }
 
