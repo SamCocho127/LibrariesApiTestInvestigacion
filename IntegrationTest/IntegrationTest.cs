@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -53,6 +54,21 @@ namespace LibraryService.Tests
                     }
                 })
             ).CreateClient();
+
+            AuthenticateClientAsync().GetAwaiter().GetResult();
+        }
+
+        private async Task AuthenticateClientAsync()
+        {
+            var loginBody = new { email = "admin", password = "1234" };
+            var response = await Client.PostAsync(
+                "/login",
+                new StringContent(JsonConvert.SerializeObject(loginBody), Encoding.UTF8, "application/json"));
+
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            var token = JsonConvert.DeserializeObject<dynamic>(json)!.token.ToString();
+            Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
         private async Task SeedLibrary()

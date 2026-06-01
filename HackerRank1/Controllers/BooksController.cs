@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using LibraryService.WebAPI.Data;
 using LibraryService.WebAPI.DTO;
 using LibraryService.WebAPI.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LibraryService.WebAPI.Controllers
@@ -21,6 +22,7 @@ namespace LibraryService.WebAPI.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> GetAll(int libraryId)
         {
             var library = (await _librariesService.Get(new[] { libraryId })).FirstOrDefault();

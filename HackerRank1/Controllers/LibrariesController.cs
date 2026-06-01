@@ -20,7 +20,7 @@ namespace LibraryService.WebAPI.Controllers
         }
 
         [HttpGet]
-        [Authorize]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> GetAll()
         {
             var libraries = await _librariesService.Get(null);
