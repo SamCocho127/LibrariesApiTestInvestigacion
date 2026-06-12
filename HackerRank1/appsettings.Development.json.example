@@ -1,0 +1,14 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=TU_HOST.supabase.com;Database=postgres;Username=TU_USUARIO;Password=TU_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
+  },
+  "JwtSettings": {
+    "SecretKey": "TU_CLAVE_SECRETA_JWT"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
