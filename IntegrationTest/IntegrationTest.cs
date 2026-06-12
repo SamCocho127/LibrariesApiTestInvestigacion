@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -11,8 +10,8 @@ using LibraryService.WebAPI.DTO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Newtonsoft.Json;
@@ -22,162 +21,117 @@ namespace LibraryService.Tests
 {
     public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     {
-        private readonly WebApplicationFactory<Program> _factory;
-        private readonly LibraryContext context;
+        private readonly FraudContext _context;
 
         public HttpClient Client { get; private set; }
 
         public IntegrationTests(WebApplicationFactory<Program> factory)
         {
-            _factory = factory;
-            context = new LibraryContext(new DbContextOptionsBuilder<LibraryContext>()
-                        .UseSqlite("DataSource=:memory:")
-                        .EnableSensitiveDataLogging()
-                        .Options);
-            Client = _factory.WithWebHostBuilder(builder =>
+            _context = new FraudContext(new DbContextOptionsBuilder<FraudContext>()
+                .UseSqlite("DataSource=:memory:")
+                .EnableSensitiveDataLogging()
+                .Options);
+
+            Client = factory.WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Testing");
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:DefaultConnection"] =
+                            "Host=localhost;Database=test;Username=test;Password=test"
+                    });
+                });
                 builder.ConfigureServices(services =>
                 {
-                    services.RemoveAll(typeof(LibraryContext));
-                    services.AddSingleton(context);
+                    services.RemoveAll(typeof(FraudContext));
+                    services.AddSingleton(_context);
 
-                    context.Database.OpenConnection();
-                    context.Database.EnsureCreated();
+                    _context.Database.OpenConnection();
+                    _context.Database.EnsureCreated();
 
-                    context.Books.RemoveRange(context.Books);
-                    context.Libraries.RemoveRange(context.Libraries);
-                    context.SaveChanges();
+                    _context.Frauds.RemoveRange(_context.Frauds);
+                    _context.SaveChanges();
 
-                    // Clear local context cache
-                    foreach (var entity in context.ChangeTracker.Entries().ToList())
+                    foreach (var entity in _context.ChangeTracker.Entries().ToList())
                     {
                         entity.State = EntityState.Detached;
                     }
-                })
-            ).CreateClient();
-
-            AuthenticateClientAsync().GetAwaiter().GetResult();
+                });
+            }).CreateClient();
         }
 
-        private async Task AuthenticateClientAsync()
+        private async Task ClearFraudsAsync()
         {
-            var loginBody = new { email = "admin", password = "1234" };
+            _context.Frauds.RemoveRange(_context.Frauds);
+            await _context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task CreateFraudReport_Returns201Created()
+        {
+            await ClearFraudsAsync();
+
+            var form = new FraudForm
+            {
+                ImpostorDetails = "Juan Perez",
+                ContactInfo = "88888888",
+                Comments = "Intento de phishing"
+            };
+
             var response = await Client.PostAsync(
-                "/login",
-                new StringContent(JsonConvert.SerializeObject(loginBody), Encoding.UTF8, "application/json"));
+                "/api/fraud",
+                new StringContent(JsonConvert.SerializeObject(form), Encoding.UTF8, "application/json"));
 
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            var token = JsonConvert.DeserializeObject<dynamic>(json)!.token.ToString();
-            Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            response.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
+
+            var created = JsonConvert.DeserializeObject<Fraud>(
+                await response.Content.ReadAsStringAsync());
+            created!.ImpostorDetails.Should().Be("Juan Perez");
+            created.ContactInfo.Should().Be("88888888");
         }
 
-        private async Task SeedLibrary()
-        {
-            context.Books.RemoveRange(context.Books);
-            context.Libraries.RemoveRange(context.Libraries);
-            await context.SaveChangesAsync();
-
-            var libraries = new List<Library>
-            {
-                new Library { Id = 1, Name = "Library Name 1", Location = "Location 1" },
-                new Library { Id = 2, Name = "Library Name 2", Location = "Location 2" },
-                new Library { Id = 3, Name = "Library Name 3", Location = "Location 3" },
-                new Library { Id = 4, Name = "Library Name 4", Location = "Location 4" }
-            };
-
-            await context.Libraries.AddRangeAsync(libraries);
-            await context.SaveChangesAsync();  // Save to the database
-        }
-
-        private async Task SeedBook(string bookName, int libraryId)
-        {
-            var bookForm = new BookForm
-            {
-                Name = bookName
-            };
-            var response1 = await Client.PostAsync($"/api/libraries/{libraryId}/books",
-                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
-        }
-
-        // TEST NAME - addBookToLibrary
-        // TEST DESCRIPTION - It adds book to a library
         [Fact]
-        public async Task TestAddBook_Ok_GetBook_NotFound()
+        public async Task CreateFraudReport_WithInvalidData_Returns400()
         {
-            await SeedLibrary();
-
-            var bookForm = new BookForm
+            var form = new FraudForm
             {
-                Name = "Test book 1",
+                ImpostorDetails = "",
+                ContactInfo = ""
             };
 
-            var response1 = await Client.PostAsync($"/api/libraries/1/books",
-                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
+            var response = await Client.PostAsync(
+                "/api/fraud",
+                new StringContent(JsonConvert.SerializeObject(form), Encoding.UTF8, "application/json"));
 
-            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
-
-            bookForm = new BookForm
-            {
-                Name = "Test book 2",
-            };
-
-            var response2 = await Client.PostAsync($"/api/libraries/100/books",
-                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
-
-            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
+            response.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status400BadRequest);
         }
 
-        // TEST NAME - getBooksInALibrary
-        // TEST DESCRIPTION - It finds all books in a library by ID
         [Fact]
-        public async Task TestGetBooks_Ok_NotFound()
+        public async Task GetFraudReports_ReturnsAllReports()
         {
-            await SeedLibrary();
+            await ClearFraudsAsync();
 
-            await SeedBook("test book 1", 1);
-            await SeedBook("test book 2", 1);
-
-            var response1 = await Client.GetAsync($"/api/libraries/2/books");
-            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status200OK);
-            var books = JsonConvert.DeserializeObject<IEnumerable<Book>>(response1.Content.ReadAsStringAsync().Result).ToList();
-            books.Count.Should().Be(0);
-
-            var response2 = await Client.GetAsync($"/api/libraries/1/books");
-            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status200OK);
-            var books2 = JsonConvert.DeserializeObject<IEnumerable<Book>>(response2.Content.ReadAsStringAsync().Result).ToList();
-            books2.Count.Should().Be(2);
-
-            var response3 = await Client.GetAsync($"/api/libraries/31232/books");
-            response3.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
-        }
-
-        // TEST NAME - deleteLibraryById
-        // TEST DESCRIPTION - Check delete library web api end point
-        [Fact]
-        public async Task TestDeleteLibrary()
-        {
-            await SeedLibrary();
-
-            var bookForm = new BookForm
+            var form = new FraudForm
             {
-                Name = "test book 1",
+                ImpostorDetails = "Empresa falsa",
+                ContactInfo = "correo@test.com",
+                Comments = "Reporte de prueba"
             };
 
-            // add book to library
-            var response0 = await Client.PostAsync("/api/libraries/1/books",
-                new StringContent(JsonConvert.SerializeObject(bookForm), Encoding.UTF8, "application/json"));
-            response0.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
+            var createResponse = await Client.PostAsync(
+                "/api/fraud",
+                new StringContent(JsonConvert.SerializeObject(form), Encoding.UTF8, "application/json"));
+            createResponse.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status201Created);
 
-            // delete library
-            var response1 = await Client.DeleteAsync("/api/libraries/1");
-            response1.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status204NoContent);
+            var response = await Client.GetAsync("/api/fraud");
+            response.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status200OK);
 
-            // Verify that delete is successful
-            var response2 = await Client.GetAsync("/api/libraries/1/books");
-            response2.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
-
-            var response3 = await Client.DeleteAsync("/api/libraries/1");
-            response3.StatusCode.Should().Be((System.Net.HttpStatusCode)StatusCodes.Status404NotFound);
+            var frauds = JsonConvert.DeserializeObject<List<Fraud>>(
+                await response.Content.ReadAsStringAsync());
+            frauds!.Should().NotBeNull();
+            frauds!.Count.Should().BeGreaterOrEqualTo(1);
         }
     }
 }

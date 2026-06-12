@@ -147,7 +147,10 @@ namespace LibraryService.WebAPI
                 endpoints.MapControllers();
             });
 
-            ApplyMigrations(app);
+            if (!env.IsEnvironment("Testing"))
+            {
+                ApplyMigrations(app);
+            }
         }
 
         private static void ApplyMigrations(IApplicationBuilder app)
