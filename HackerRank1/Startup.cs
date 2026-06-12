@@ -64,11 +64,13 @@ namespace LibraryService.WebAPI
             services.AddAuthorization();
 
 
-            // Add support for Dependency Injection for internal services (BooksService and LibrariesService)
-            services.AddTransient<ILibrariesService,  LibrariesService>();
-            services.AddTransient<IBooksService,  BooksService>();
+            services.AddTransient<IFraudService, FraudService>();
 
-            services.AddDbContext<LibraryContext>(options => options.UseInMemoryDatabase("librarydb"));
+            var connectionString = Configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+            services.AddDbContext<FraudContext>(options =>
+                options.UseNpgsql(connectionString));
             services.AddControllers()
                 .AddJsonOptions(options =>
                 {
@@ -76,21 +78,28 @@ namespace LibraryService.WebAPI
                 });
 
             var corsOrigins = Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? new[]
-                {
-                    "http://localhost:5173",
-                    "http://127.0.0.1:5173",
-                    "http://localhost:4173",
-                    "http://127.0.0.1:4173",
-                };
+                ?? Array.Empty<string>();
 
             services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins(corsOrigins)
-                        .AllowAnyHeader()
-                        .AllowAnyMethod();
+                    policy.SetIsOriginAllowed(origin =>
+                    {
+                        if (string.IsNullOrWhiteSpace(origin))
+                            return false;
+
+                        if (corsOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                            return true;
+
+                        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                            return false;
+
+                        return uri.Host.EndsWith(".netlify.app", StringComparison.OrdinalIgnoreCase)
+                            || uri.Host.EndsWith(".netlify.live", StringComparison.OrdinalIgnoreCase);
+                    })
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
                 });
             });
 
@@ -99,9 +108,9 @@ namespace LibraryService.WebAPI
             {
                 c.SwaggerDoc("v1", new OpenApiInfo
                 {
-                    Title = "LibraryService API",
+                    Title = "Fraud Report API",
                     Version = "v1",
-                    Description = "A simple example ASP.NET Core Web API for LibraryService"
+                    Description = "API para reportar y consultar fraudes"
                 });
             });
         }
@@ -120,7 +129,7 @@ namespace LibraryService.WebAPI
                 // Enable middleware to serve swagger-ui, specifying the Swagger JSON endpoint.
                 app.UseSwaggerUI(c =>
                 {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LibraryService API v1");
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fraud Report API v1");
                 });
             }
 
@@ -138,33 +147,14 @@ namespace LibraryService.WebAPI
                 endpoints.MapControllers();
             });
 
-            SeedDatabase(app);
+            ApplyMigrations(app);
         }
 
-        private static void SeedDatabase(IApplicationBuilder app)
+        private static void ApplyMigrations(IApplicationBuilder app)
         {
             using var scope = app.ApplicationServices.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<LibraryContext>();
-
-            if (context.Libraries.Any())
-                return;
-
-            var libraries = new[]
-            {
-                new Library { Name = "Biblioteca Central", Location = "San José" },
-                new Library { Name = "Biblioteca Norte", Location = "Heredia" },
-                new Library { Name = "Biblioteca Sur", Location = "Cartago" },
-            };
-
-            context.Libraries.AddRange(libraries);
-            context.SaveChanges();
-
-            context.Books.AddRange(
-                new Book { Name = "Cien años de soledad", Category = "Ficción", LibraryId = 1 },
-                new Book { Name = "El principito", Category = "Ficción", LibraryId = 1 },
-                new Book { Name = "Sapiens", Category = "Historia", LibraryId = 2 },
-                new Book { Name = "Clean Code", Category = "Tecnología", LibraryId = 3 });
-            context.SaveChanges();
+            var context = scope.ServiceProvider.GetRequiredService<FraudContext>();
+            context.Database.Migrate();
         }
     }
 }
